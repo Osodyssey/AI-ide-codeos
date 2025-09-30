@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini VSCode-like IDE with Tailwind (RTL)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Tailwind config: dark mode and custom font stack
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            panel: '#0f1724',
+            panel-2: '#0b1220',
+            accent: '#06b6d4',
+            accent-2: '#0ea5e9',
+            codebg: '#0b1220'
+          },
+          fontFamily: {
+            sans: ['Vazirmatn', 'Tahoma', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* load a Persian friendly font if available (optional) */
+    @font-face{font-family:Vazirmatn;src:local('Vazirmatn'), local('Vazirmatn-Regular');}
+    html,body,#app{height:100%}
+    /* Monaco container full height handling */
+    #editor { height: 100%; }
+    /* small scrollbar polish */
+    ::-webkit-scrollbar{height:8px;width:8px}
+    ::-webkit-scrollbar-thumb{background:#1f2937;border-radius:8px}
+  </style>
+</head>
+<body class="h-full bg-gradient-to-b from-panel to-panel-2 text-slate-100 font-sans">
+  <div id="app" class="h-full flex flex-col">
+    <!-- Topbar -->
+    <header class="h-14 flex items-center gap-3 px-4 shadow-sm bg-gradient-to-r from-[#071025] to-[#061321]">
+      <div class="flex items-center gap-2">
+        <button id="btn-menu" class="p-2 rounded-md hover:bg-white/5 transition"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <div class="text-sm font-semibold">Mini IDE</div>
+        <span class="text-xs text-slate-400 mr-2">قابل اجرا در هاست PHP — Tailwind نسخه زیبا</span>
+      </div>
+
+      <div class="flex-1 mx-4">
+        <input id="cmd" placeholder="Command Palette — تایپ و Enter (مثال: format, save)" class="w-full rounded-md bg-slate-800 placeholder:text-slate-400 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60" />
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div id="status" class="text-xs text-slate-400">آماده</div>
+        <button id="btn-theme" class="p-2 rounded-md hover:bg-white/5">🌗</button>
+      </div>
+    </header>
+
+    <!-- Main layout -->
+    <main class="flex-1 flex overflow-hidden">
+      <!-- Left: Files & Config -->
+      <aside class="w-64 bg-slate-900/50 border-l border-slate-800 p-4 flex flex-col gap-4 overflow-auto">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-semibold">فایل‌ها</h3>
+          <div class="flex gap-2">
+            <button id="btn-new-file" class="text-xs px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700">فایل جدید</button>
+            <button id="btn-save" class="text-xs px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500">ذخیره</button>
+          </div>
+        </div>
+
+        <div id="file-list" class="flex-1 overflow-auto space-y-1 pr-1"></div>
+
+        <div class="pt-2 border-t border-slate-800">
+          <h4 class="text-xs text-slate-300 mb-2">پیکربندی Chat</h4>
+          <input id="api-endpoint" placeholder="https://example.com/chat-api" class="w-full text-sm bg-slate-800 rounded-md px-3 py-2 mb-2" />
+          <input id="api-key" placeholder="API Key (اختیاری)" class="w-full text-sm bg-slate-800 rounded-md px-3 py-2 mb-2" />
+          <div class="flex gap-2">
+            <button id="btn-save-config" class="flex-1 text-sm px-2 py-2 rounded-md bg-sky-600 hover:bg-sky-500">ذخیره تنظیمات</button>
+            <button id="btn-list-server" class="text-sm px-2 py-2 rounded-md bg-slate-700 hover:bg-slate-600">فایل‌های سرور</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center: Editor -->
+      <section class="flex-1 flex flex-col bg-[linear-gradient(180deg,#071425,_#071525)]">
+        <div class="flex items-center gap-2 px-3 py-2 border-b border-slate-800">
+          <div id="tabs" class="flex gap-1 overflow-auto"></div>
+          <div class="flex-1"></div>
+          <div class="text-xs text-slate-400 mr-2">فایل فعلی: <span id="current-file" class="font-medium">-</span></div>
+        </div>
+        <div id="editor" class="flex-1 bg-codebg"></div>
+      </section>
+
+      <!-- Right: Chat & Console -->
+      <aside class="w-96 bg-gradient-to-t from-[#071018] to-[#081220] border-r border-slate-800 p-4 flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <h3 class="text-sm font-semibold">چت بات</h3>
+            <span class="text-xs text-slate-400">(شبیه‌سازی / اتصال اختیاری)</span>
+          </div>
+          <div class="flex gap-2">
+            <button id="btn-clear-chat" class="text-xs px-2 py-1 rounded-md bg-slate-800">پاکسازی</button>
+            <button id="btn-send-test" class="text-xs px-2 py-1 rounded-md bg-indigo-600">تست</button>
+          </div>
+        </div>
+
+        <div id="chat-history" class="flex-1 overflow-auto space-y-3 pr-1"></div>
+
+        <div class="flex gap-2">
+          <input id="chat-input" placeholder="پیام خود را وارد کنید..." class="flex-1 rounded-md bg-slate-800 px-3 py-2 text-sm" />
+          <button id="chat-send" class="px-3 py-2 rounded-md bg-accent hover:bg-accent-2 text-black font-medium">ارسال</button>
+        </div>
+
+        <div class="text-xs text-slate-400">پاسخ‌ها فعلاً شبیه‌سازی می‌شوند مگر endpoint تنظیم شود.</div>
+      </aside>
+    </main>
+
+    <!-- Footer tiny -->
+    <footer class="h-8 text-xs text-slate-400 flex items-center justify-between px-4 border-t border-slate-800">
+      <div>Mini IDE — طراحی شده با ♥ توسط شما</div>
+      <div id="autosave" class="opacity-80">Autosave: On</div>
+    </footer>
+  </div>
+
+  <!-- Monaco loader -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.41.0/min/vs/loader.js"></script>
+  <script>
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.41.0/min/vs' }});
+    require(['vs/editor/editor.main'], function() {
+      // sample files
+      const SAMPLE_FILES = {
+        'index.html': "<!doctype html>\n<html>\n  <body>\n    <h1>سلام دنیا</h1>\n  </body>\n</html>",
+        'app.js': "console.log('hello from app.js');\n",
+        'style.css': "body{font-family: Vaziri; }\n"
+      };
+
+      const models = {};
+      const files = {};
+      Object.assign(files, SAMPLE_FILES);
+
+      const editor = monaco.editor.create(document.getElementById('editor'), {
+        value: SAMPLE_FILES['app.js'],
+        language: 'javascript',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        minimap: { enabled: false },
+        fontSize: 13,
+        glyphMargin: true,
+      });
+
+      function extToLanguage(name){
+        if(name.endsWith('.js')) return 'javascript';
+        if(name.endsWith('.ts')) return 'typescript';
+        if(name.endsWith('.css')) return 'css';
+        if(name.endsWith('.html') || name.endsWith('.htm')) return 'html';
+        if(name.endsWith('.json')) return 'json';
+        if(name.endsWith('.php')) return 'php';
+        return 'plaintext';
+      }
+
+      // create models
+      Object.keys(files).forEach(path=>{ models[path] = monaco.editor.createModel(files[path], extToLanguage(path)); });
+      let currentFile = Object.keys(models)[0];
+      editor.setModel(models[currentFile]);
+
+      // UI refs
+      const fileList = document.getElementById('file-list');
+      const tabs = document.getElementById('tabs');
+      const currentFileLabel = document.getElementById('current-file');
+      const status = document.getElementById('status');
+
+      // render file list & tabs
+      function renderFileList(){
+        fileList.innerHTML = '';
+        Object.keys(models).forEach(name=>{
+          const el = document.createElement('div');
+          el.className = 'flex items-center justify-between gap-2 p-2 rounded-md hover:bg-slate-800/50 cursor-pointer';
+          el.innerHTML = `<div class=\"flex items-center gap-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4 text-slate-300\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M7 7h10M7 12h6m-6 5h10\"/></svg><div class=\"text-sm\">${name}</div></div><div class=\"text-xs text-slate-400\">⋯</div>`;
+          el.onclick = ()=>{ switchToFile(name); };
+          fileList.appendChild(el);
+        });
+      }
+
+      function renderTabs(){
+        tabs.innerHTML = '';
+        Object.keys(models).forEach(name=>{
+          const t = document.createElement('div');
+          t.className = `px-3 py-1 rounded-md text-sm cursor-pointer ${name===currentFile? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-white/2'}`;
+          t.textContent = name;
+          t.onclick = ()=> switchToFile(name);
+          tabs.appendChild(t);
+        });
+      }
+
+      function switchToFile(name){
+        files[currentFile] = editor.getValue();
+        currentFile = name;
+        editor.setModel(models[name]);
+        currentFileLabel.textContent = name;
+        setStatus('فایل: '+name);
+        renderTabs();
+      }
+
+      renderFileList();
+      renderTabs();
+      currentFileLabel.textContent = currentFile;
+
+      // buttons
+      document.getElementById('btn-new-file').onclick = ()=>{
+        const name = prompt('نام فایل (مثال: new.js):');
+        if(!name) return;
+        if(models[name]){ alert('فایل وجود دارد'); return; }
+        models[name] = monaco.editor.createModel('', extToLanguage(name));
+        files[name] = '';
+        switchToFile(name);
+        renderFileList();
+      };
+
+      document.getElementById('btn-save').onclick = ()=>{
+        files[currentFile] = editor.getValue();
+        localStorage.setItem('mini-ide-files', JSON.stringify(serializeModels()));
+        setStatus('ذخیره شد (localStorage) ' + new Date().toLocaleTimeString());
+      };
+
+      // autosave
+      let autosave = true;
+      setInterval(()=>{
+        if(!autosave) return;
+        files[currentFile] = editor.getValue();
+        localStorage.setItem('mini-ide-files', JSON.stringify(serializeModels()));
+        document.getElementById('autosave').textContent = 'Autosave: On — ' + new Date().toLocaleTimeString();
+      }, 3000);
+
+      function serializeModels(){ const out = {}; Object.keys(models).forEach(k=> out[k] = models[k].getValue()); return out; }
+
+      // load saved
+      const saved = localStorage.getItem('mini-ide-files');
+      if(saved){ try{ const obj = JSON.parse(saved); Object.keys(obj).forEach(k=>{ if(!models[k]) models[k] = monaco.editor.createModel(obj[k], extToLanguage(k)); else models[k].setValue(obj[k]); files[k] = obj[k]; }); currentFile = Object.keys(models)[0]; editor.setModel(models[currentFile]); renderFileList(); renderTabs(); setStatus('بارگذاری از localStorage'); }catch(e){ console.warn(e); } }
+
+      // Command palette basic
+      const cmdInput = document.getElementById('cmd');
+      const commands = {
+        'save': ()=> document.getElementById('btn-save').click(),
+        'format': ()=> editor.getAction('editor.action.formatDocument')?.run(),
+        'save-server': ()=> document.getElementById('btn-save-server')?.click()
+      };
+      cmdInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const v = cmdInput.value.trim(); if(commands[v]) commands[v](); else alert('دستور پیدا نشد: '+v); cmdInput.value=''; } });
+
+      function setStatus(t){ status.textContent = t; }
+
+      // server save helper (uses saved config)
+      async function saveFileToServer(path, content){
+        const cfg = JSON.parse(localStorage.getItem('mini-ide-config')||'{}');
+        if(!cfg.endpoint) return {ok:false, text:'endpoint not set'};
+        try{
+          const res = await fetch(cfg.endpoint, {method:'POST', headers:{'Content-Type':'application/json','x-api-key':cfg.key||''}, body: JSON.stringify({file: path, content})});
+          const text = await res.text();
+          return {ok:res.ok, text};
+        }catch(e){ return {ok:false, text:String(e)} }
+      }
+
+      // save config
+      document.getElementById('btn-save-config').onclick = ()=>{
+        const ep = document.getElementById('api-endpoint').value.trim();
+        const key = document.getElementById('api-key').value.trim();
+        localStorage.setItem('mini-ide-config', JSON.stringify({endpoint: ep, key: key}));
+        setStatus('تنظیمات ذخیره شد');
+      };
+
+      // Right: Chat
+      const chatHistory = document.getElementById('chat-history');
+      const chatInput = document.getElementById('chat-input');
+      const chatSend = document.getElementById('chat-send');
+      const btnClearChat = document.getElementById('btn-clear-chat');
+      const btnSendTest = document.getElementById('btn-send-test');
+
+      function appendChat(who, text){
+        const el = document.createElement('div');
+        el.className = 'max-w-[85%] px-3 py-2 rounded-xl whitespace-pre-wrap text-sm';
+        if(who==='user'){ el.classList.add('bg-slate-800','self-start'); el.style.borderRadius='12px 12px 12px 2px'; }
+        else { el.classList.add('bg-slate-700','self-end'); el.style.borderRadius='12px 12px 2px 12px'; }
+        el.textContent = text;
+        chatHistory.appendChild(el);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+      }
+
+      chatSend.onclick = ()=>{ sendChat(chatInput.value); chatInput.value=''; };
+      chatInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ sendChat(chatInput.value); chatInput.value=''; } });
+
+      async function sendChat(text){ if(!text) return; appendChat('user', text); setStatus('در حال پاسخ...');
+        const cfg = JSON.parse(localStorage.getItem('mini-ide-config')||'{}');
+        if(cfg.endpoint){
+          try{
+            const payload = { message: text };
+            const res = await fetch(cfg.endpoint, { method:'POST', headers:{ 'Content-Type':'application/json','x-api-key': cfg.key||'' }, body: JSON.stringify(payload) });
+            const data = await res.json();
+            const botText = data.reply || data.result || JSON.stringify(data);
+            appendChat('bot', botText);
+            setStatus('پاسخ از API دریافت شد');
+            return;
+          }catch(e){ console.warn(e); appendChat('bot','خطا در تماس با API — پاسخ شبیه‌سازی شده'); setStatus('خطا در تماس با API'); return; }
+        }
+
+        // simulated reply
+        setTimeout(()=>{ const r = simpleBotReply(text); appendChat('bot', r); setStatus('پاسخ شبیه‌سازی شد'); }, 450);
+      }
+
+      function simpleBotReply(text){ text = text.toLowerCase(); if(text.includes('سلام')||text.includes('درود')) return 'سلام! چطور می‌تونم کمکتون کنم؟'; if(text.includes('کمک')) return 'می‌تونم نمونه کد، دیباگ یا اتصال API رو توضیح بدم.'; if(text.includes('ذخیره')) return 'برای ذخیره روی سرور، endpoint را وارد و دکمه مربوطه را فشار دهید.'; return 'این یک پاسخ شبیه‌سازی شده است.'; }
+
+      btnClearChat.onclick = ()=>{ chatHistory.innerHTML=''; };
+      btnSendTest.onclick = ()=>{ sendChat('مثال: لطفاً نمونه ذخیره فایل را بده'); };
+
+      // small extras: keyboard shortcuts
+      window.addEventListener('keydown', (e)=>{
+        if((e.ctrlKey||e.metaKey) && e.key==='s'){
+          e.preventDefault(); document.getElementById('btn-save').click();
+        }
+        if((e.ctrlKey||e.metaKey) && e.key==='b'){
+          e.preventDefault(); document.querySelector('aside')?.classList.toggle('hidden');
+        }
+      });
+
+      setStatus('IDE آماده است');
+
+      // expose API for future extensions
+      window.IDE = { editor, monaco, models, files, saveFileToServer };
+
+    });
+  </script>
+
+
+
+</body>
+</html>
